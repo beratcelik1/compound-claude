@@ -1,7 +1,7 @@
-# Global Instructions
+# Global Instructions — Berat Celik
 
 ## Who I Am
-Developer building with Python and TypeScript. Speed over ceremony. I want Claude to do the work, not describe it.
+Solo developer building trading systems and web apps. Python (primary), TypeScript (secondary). Speed over ceremony. I want Claude to do the work, not describe it.
 
 ## How I Work
 - I say what I want in plain English. Claude picks the right agents/skills/commands.
@@ -70,3 +70,4 @@ Rules in `rules/` are enforced automatically — do NOT duplicate rule content h
 - Max 3-4 parallel subagents — beyond that, orchestration overhead exceeds gains
 - When mocking in tests: use patch.object, not patch with string paths (refactor-safe)
 - When Claude does something wrong: add the learning HERE immediately. Each mistake should only happen once.
+- NEVER add "Co-Authored-By: Claude" or any AI attribution to git commits. Commits are mine.
