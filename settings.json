@@ -1,0 +1,332 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git pull:*)",
+      "Bash(git branch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(git worktree:*)",
+      "Bash(python3:*)",
+      "Bash(python:*)",
+      "Bash(pip3:*)",
+      "Bash(pip:*)",
+      "Bash(uv:*)",
+      "Bash(pytest:*)",
+      "Bash(python -m pytest:*)",
+      "Bash(mypy:*)",
+      "Bash(ruff:*)",
+      "Bash(black:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(pnpm:*)",
+      "Bash(bun:*)",
+      "Bash(tsc:*)",
+      "Bash(eslint:*)",
+      "Bash(prettier:*)",
+      "Bash(jest:*)",
+      "Bash(vitest:*)",
+      "Bash(gh:*)",
+      "Bash(wc:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)"
+    ],
+    "defaultMode": "bypassPermissions"
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '[AGENTS] Start: researcher | End: code-reviewer (+ security-sentinel if auth/secrets)' >&2; exit 0"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|Read|Glob|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/skills/continuous-learning-v2/hooks/observe.sh pre"
+          }
+        ],
+        "description": "Instinct system — observe tool use (pre)"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CMD=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE '(npm run dev|pnpm dev|yarn dev|bun run dev)'; then if [ -z \"$TMUX\" ]; then echo '[Hook] BLOCKED: Dev server must run in tmux' >&2; echo '[Hook] Use: tmux new-session -d -s dev \"npm run dev\"' >&2; exit 2; fi; fi; exit 0"
+          }
+        ],
+        "description": "Block dev servers outside tmux"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CMD=$(jq -r '.tool_input.command // empty' 2>/dev/null); if echo \"$CMD\" | grep -qE 'git (commit|push)'; then if [ ! -f /tmp/.claude-review-passed ]; then echo '[BLOCKED] code-reviewer has NOT been run yet. Launch code-reviewer agent first, then retry.' >&2; exit 2; fi; fi; exit 0"
+          }
+        ],
+        "description": "BLOCK git commit/push until code-reviewer has run"
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); if [[ \"$FILE\" == *.md ]] && [[ \"$FILE\" != *README* ]] && [[ \"$FILE\" != *CLAUDE* ]] && [[ \"$FILE\" != */docs/* ]] && [[ \"$FILE\" != */plans/* ]] && [[ \"$FILE\" != */solutions/* ]] && [[ \"$FILE\" != */memory/* ]] && [[ \"$FILE\" != */agents/* ]] && [[ \"$FILE\" != */rules/* ]] && [[ \"$FILE\" != */skills/* ]] && [[ \"$FILE\" != */commands/* ]]; then echo '[Hook] Blocking unnecessary .md file. Use docs/, plans/, or solutions/.' >&2; exit 1; fi; exit 0"
+          }
+        ],
+        "description": "Block unnecessary .md files"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -z \"$FILE\" ] && exit 0; if [[ \"$FILE\" == *.py ]]; then which black >/dev/null 2>&1 && black --quiet \"$FILE\" 2>/dev/null; which ruff >/dev/null 2>&1 && ruff check --fix --quiet \"$FILE\" 2>/dev/null; elif [[ \"$FILE\" == *.ts || \"$FILE\" == *.tsx || \"$FILE\" == *.js || \"$FILE\" == *.jsx ]]; then which prettier >/dev/null 2>&1 && npx prettier --write \"$FILE\" 2>/dev/null; fi; exit 0"
+          }
+        ],
+        "description": "Auto-format Python (black+ruff) and TS/JS (prettier)"
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -z \"$FILE\" ] && exit 0; if [[ \"$FILE\" == *.ts || \"$FILE\" == *.tsx ]]; then if [ -f \"tsconfig.json\" ] || [ -f \"../tsconfig.json\" ]; then npx tsc --noEmit 2>&1 | head -20 || true; fi; fi; exit 0"
+          }
+        ],
+        "description": "TypeScript type check after edits"
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(jq -r '.tool_input.file_path // empty' 2>/dev/null); [ -z \"$FILE\" ] && exit 0; case \"$FILE\" in *.js|*.jsx|*.ts|*.tsx) if grep -q 'console.log' \"$FILE\" 2>/dev/null; then echo '[Hook] Warning: console.log detected in '\"$FILE\" >&2; fi;; esac; exit 0"
+          }
+        ],
+        "description": "Warn about console.log"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CMD=$(jq -r '.tool_input.command // empty' 2>/dev/null); OUT=$(jq -r '.tool_output.output // empty' 2>/dev/null); if echo \"$CMD\" | grep -q 'gh pr create'; then URL=$(echo \"$OUT\" | grep -o 'https://github.com/[^ ]*pull/[0-9]*'); if [ -n \"$URL\" ]; then echo \"[Hook] PR created: $URL\" >&2; fi; fi; exit 0"
+          }
+        ],
+        "description": "Log PR URL after creation"
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "CMD=$(jq -r '.tool_input.command // empty' 2>/dev/null); [ -z \"$CMD\" ] && exit 0; LOG=~/.claude/bash-commands.log; echo \"$(date '+%Y-%m-%d %H:%M:%S') | $CMD\" >> \"$LOG\" 2>/dev/null; [ $(wc -l < \"$LOG\" 2>/dev/null || echo 0) -gt 10000 ] && tail -5000 \"$LOG\" > \"$LOG.tmp\" && mv \"$LOG.tmp\" \"$LOG\" 2>/dev/null; exit 0"
+          }
+        ],
+        "description": "Audit log — append every bash command to ~/.claude/bash-commands.log"
+      },
+      {
+        "matcher": "Bash|Edit|Write|Read|Glob|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/skills/continuous-learning-v2/hooks/observe.sh post"
+          }
+        ],
+        "description": "Instinct system — observe tool use (post)"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "which terminal-notifier >/dev/null 2>&1 && terminal-notifier -title 'Claude Code' -message 'Task complete' -sound default 2>/dev/null; exit 0"
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if [ ! -f /tmp/.claude-review-passed ] && { git diff --name-only HEAD 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null; } | grep -qE '\\.(py|ts|tsx|js|jsx)$'; then echo '[REVIEW MISSING] code-reviewer was NOT run. Git commit/push is BLOCKED until you run it.' >&2; fi; exit 0"
+          }
+        ]
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Does the response tell the user what to do instead of doing it? Look for phrases like 'you can', 'you should', 'here is what to do', 'I recommend', 'you need to'. If Claude described changes instead of making them, respond ONLY with this exact JSON: {\"decision\":\"block\",\"reason\":\"Do the work instead of describing it.\"}. If work is complete, respond ONLY with: {\"decision\":\"approve\",\"reason\":\"Done.\"}"
+          }
+        ],
+        "description": "Anti-rationalization — blocks stop if Claude described work instead of doing it"
+      },
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "OBS_DIR=$(find ~/.claude/homunculus/projects -name 'observations.jsonl' -newer /tmp/.claude-last-instinct-check 2>/dev/null | head -1); if [ -z \"$OBS_DIR\" ]; then OBS_DIR=$(find ~/.claude/homunculus -maxdepth 1 -name 'observations.jsonl' -newer /tmp/.claude-last-instinct-check 2>/dev/null | head -1); fi; if [ -n \"$OBS_DIR\" ]; then COUNT=$(wc -l < \"$OBS_DIR\" 2>/dev/null | tr -d ' '); if [ \"${COUNT:-0}\" -ge 20 ]; then echo '[Instinct] Session generated '$COUNT' observations. Run /instinct-status or /evolve to analyze patterns.' >&2; fi; fi; touch /tmp/.claude-last-instinct-check 2>/dev/null; exit 0"
+          }
+        ],
+        "description": "Instinct system — notify when enough observations for pattern extraction"
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "AGENT=$(jq -r '.agent_name // .subagent_type // \"unknown\"' 2>/dev/null); echo \"$(date '+%Y-%m-%d %H:%M:%S') | subagent_stop | $AGENT\" >> ~/.claude/agent-activity.log 2>/dev/null; exit 0"
+          }
+        ],
+        "description": "Log subagent completions for instinct pattern analysis"
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "TOOL=$(jq -r '.tool_name // \"unknown\"' 2>/dev/null); ERR=$(jq -r '.error // .tool_output.output // \"\"' 2>/dev/null | head -c 500); echo \"$(date '+%Y-%m-%d %H:%M:%S') | FAIL | $TOOL | $ERR\" >> ~/.claude/tool-failures.log 2>/dev/null; exit 0"
+          }
+        ],
+        "description": "Log tool failures for debugging and instinct learning"
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "MSG=$(jq -r '.message // \"Notification\"' 2>/dev/null); which terminal-notifier >/dev/null 2>&1 && terminal-notifier -title 'Claude Code' -message \"$MSG\" -sound default 2>/dev/null; exit 0"
+          }
+        ],
+        "description": "Desktop notification on idle/permission prompts"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "rm -f /tmp/.claude-review-passed 2>/dev/null; echo '=== GIT STATUS ===' && git status --short 2>/dev/null && echo '=== RECENT COMMITS ===' && git log --oneline -5 2>/dev/null; exit 0"
+          }
+        ],
+        "description": "Inject git context at session start"
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '=== PRE-COMPACTION SNAPSHOT ===' >&2; echo \"Modified files: $(git diff --name-only HEAD 2>/dev/null | tr '\\n' ', ')\" >&2; echo \"Staged files: $(git diff --cached --name-only 2>/dev/null | tr '\\n' ', ')\" >&2; exit 0"
+          }
+        ],
+        "description": "Log modified files before compaction"
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "hookify@claude-plugins-official": true,
+    "mgrep@Mixedbread-Grep": true,
+    "everything-claude-code@everything-claude-code": true
+  },
+  "extraKnownMarketplaces": {
+    "Mixedbread-Grep": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/mixedbread-ai/mgrep.git"
+      }
+    },
+    "everything-claude-code": {
+      "source": {
+        "source": "github",
+        "repo": "affaan-m/everything-claude-code"
+      }
+    }
+  },
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "CLAUDE_CODE_ENABLE_ALWAYS_THINKING": "1",
+    "CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000"
+  },
+  "cleanupPeriodDays": 365,
+  "enableAllProjectMcpServers": false,
+  "skipDangerousModePermissionPrompt": true,
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
+    "memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@context7/mcp-server"
+      ]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "__HOME__/Desktop"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@anthropic-ai/mcp-server-playwright"
+      ]
+    }
+  },
+  "effortLevel": "high"
+}
