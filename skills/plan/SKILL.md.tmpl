@@ -1,0 +1,88 @@
+---
+name: plan
+description: "Transform a feature description into a well-structured implementation plan"
+argument-hint: "[feature description or bug report]"
+---
+---
+name: {{SKILL_NAME}}
+description: {{SKILL_DESCRIPTION}}
+argument-hint: "[feature description or bug report]"
+---
+
+# Plan
+
+Transform feature descriptions, bug reports, or improvement ideas into structured implementation plans.
+
+## Input
+
+Feature/bug/idea: $ARGUMENTS
+
+**If empty, ask:** "What would you like to plan? Describe the feature, bug fix, or improvement."
+
+## Steps
+
+### 1. Research (Parallel)
+
+Run in parallel:
+- **Repo Research**: Search codebase for existing patterns, conventions, similar implementations
+- **Learnings Search**: Check `docs/solutions/` for past solutions that might apply
+- **CLAUDE.md Review**: Read project conventions and constraints
+
+### 2. Refine Requirements
+
+Use AskUserQuestion to clarify:
+- Purpose and constraints
+- Success criteria
+- Scope (minimal, standard, comprehensive)
+
+If the description is already detailed, offer to skip: "Your description is clear. Proceed with planning?"
+
+### 3. Structure the Plan
+
+**Filename:** `docs/plans/YYYY-MM-DD-<type>-<descriptive-name>-plan.md`
+
+Choose detail level based on complexity:
+
+**Minimal (simple bugs/features):**
+- Problem statement
+- Acceptance criteria
+- Key context
+
+**Standard (most work):**
+- Overview + motivation
+- Proposed solution
+- Technical considerations
+- Acceptance criteria
+- Dependencies & risks
+
+**Comprehensive (major features/architecture):**
+- Everything above plus:
+- Implementation phases
+- Alternative approaches
+- Resource requirements
+- Risk mitigation
+
+### 4. Write Plan
+
+Create the plan file with:
+- YAML frontmatter (title, type, date)
+- Structured sections per detail level
+- Code examples with file paths
+- Checkboxes for trackable items
+- References to existing code patterns
+
+### 5. Next Steps
+
+Ask user:
+1. Start implementing (`/work <plan-file>`)
+2. Refine the plan further
+3. Get technical review
+4. Create GitHub issue
+
+## Principles
+
+- Plan thoroughly before writing code
+- 80% planning, 20% execution
+- Reference existing patterns
+- Make the plan actionable and specific
+- NEVER write code during planning

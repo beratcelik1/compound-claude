@@ -1,0 +1,48 @@
+# Sessions & ephemeral state
+sessions/
+shell-snapshots/
+file-history/
+paste-cache/
+debug/
+todos/
+plans/
+
+# Plugin cache (installed at runtime)
+plugins/cache/
+
+# Logs
+*.log
+bash-commands.log
+tool-failures.log
+agent-activity.log
+
+# Learning system observations (large, per-session)
+homunculus/projects/*/observations.jsonl
+homunculus/projects/*/sessions/
+
+# Secrets
+.env
+.env.*
+!.env.example
+credentials.json
+*.pem
+*.key
+
+# Build artifacts
+browse/node_modules/
+browse/bin/browse
+browse/bun.lockb
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Eval results (generated per-run)
+evals/
+
+# Memory index loaded at runtime
+projects/
